@@ -7,6 +7,7 @@
 (***********************************************************************)
 
 exception Protocol_error
+exception Login_error
 
 (* Créer un token d'authentification *)
 let make_token hash host port password =
@@ -45,9 +46,15 @@ let identify ichan ochan login password line =
              * grammaire ? *)
             match tokens with
                 | _ :: _ :: hash :: host :: port :: _ ->
-                    let token = make_token hash host port password in
-                    ext_user_log send_fct login token
-                                 "ocamlsoul" "none"
+                    begin
+                        try
+                            let token = make_token hash host port password in
+                            ext_user_log send_fct login token
+                                         "ocamlsoul" "none"
+                        with
+                            | Protocol_error -> raise Login_error
+                            | excpt          -> raise excpt
+                    end
                 | _ -> raise Protocol_error
         end;
         user_cmd (Client.send_line ochan) "state" "actif"
@@ -68,6 +75,8 @@ let client host port login password =
     while true do
         try
             Client.run host port (manager login password)
-        with _ -> Unix.sleep 2
+        with
+            | Login_error -> raise Login_error
+            | _           -> Unix.sleep 2
     done
 
